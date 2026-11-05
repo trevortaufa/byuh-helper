@@ -4,11 +4,8 @@ import { getWeeklyMenu, hawaiiWeekday, MENU_URL, type MenuDay } from "@/lib/menu
 
 export default function Home() {
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-8">
-      <header>
-        <p className="text-sm font-medium text-teal-700 dark:text-teal-400">BYUH Helper</p>
-        <h1 className="text-3xl font-semibold tracking-tight">What&apos;s at the caf</h1>
-      </header>
+    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-6">
+      <h1 className="text-3xl font-semibold tracking-tight">What&apos;s at the caf</h1>
       <Suspense fallback={<p className="text-zinc-500">Loading the menu…</p>}>
         <Menu />
       </Suspense>
