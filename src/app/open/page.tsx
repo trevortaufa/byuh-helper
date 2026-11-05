@@ -11,7 +11,7 @@ export default function OpenPage() {
       <h1 className="text-3xl font-semibold tracking-tight">What&apos;s open now</h1>
       <OpenNow />
       <p className="text-xs text-zinc-500">
-        Regular semester hours, checked {checked}. Holidays and breaks aren&apos;t included yet; tap a place for its own page.
+        Semester and holiday hours, checked {checked}. Breaks between semesters aren&apos;t included yet; tap a place for its own page.
       </p>
     </main>
   );

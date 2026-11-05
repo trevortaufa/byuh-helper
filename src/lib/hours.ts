@@ -1,34 +1,53 @@
-import type { Place, Weekday } from "@/data/hours";
+import { HOLIDAYS, type Place, type Slot, type Weekday } from "@/data/hours";
 
 const WEEK: Weekday[] = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
 export interface HawaiiTime {
-  day: Weekday;
+  date: string; // "2026-11-26"
   minute: number; // minutes since midnight
 }
 
+type Opens = { day: Weekday | "tomorrow" | null; at: string; only?: string } | null;
+
 export type Status =
-  | { open: true; until: string; label?: string; only?: string }
-  | { open: false; opens: { day: Weekday | "tomorrow" | null; at: string; only?: string } | null };
+  | { state: "open"; until: string; label?: string; only?: string; holiday?: string }
+  | { state: "closed"; opens: Opens; holiday?: string }
+  | { state: "unknown"; holiday: string }; // a holiday the place hasn't posted hours for
 
 const minutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
 
-/** The day and time in Hawaii, wherever the code runs (servers and some phones aren't on Hawaii time). */
-export function hawaiiTime(date = new Date()): HawaiiTime {
+// Dates are handled as plain "YYYY-MM-DD" strings at UTC midnight, so adding a day never trips over time zones.
+const weekdayOf = (date: string) => WEEK[new Date(`${date}T00:00:00Z`).getUTCDay()];
+const addDays = (date: string, n: number) => new Date(Date.parse(`${date}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+
+/** The date and time in Hawaii, wherever the code runs (servers and some phones aren't on Hawaii time). */
+export function hawaiiTime(at = new Date()): HawaiiTime {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Pacific/Honolulu",
-    weekday: "long",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
-  }).formatToParts(date);
+  }).formatToParts(at);
   const part = (type: string) => parts.find((p) => p.type === type)!.value;
-  return { day: part("weekday").toLowerCase() as Weekday, minute: Number(part("hour")) * 60 + Number(part("minute")) };
+  return { date: `${part("year")}-${part("month")}-${part("day")}`, minute: Number(part("hour")) * 60 + Number(part("minute")) };
 }
 
-/** Whether a place is open at a moment, and until when — or when it next opens (null: never this week). */
+/** A place's hours on one date: one-off dates first, then holidays, then its usual week. null = holiday, hours not posted. */
+export function slotsOn(place: Place, date: string): Slot[] | null {
+  if (place.dates?.[date]) return place.dates[date];
+  if (HOLIDAYS[date]) return place.holidays === "closed" ? [] : (place.holidays ?? null);
+  return place.week[weekdayOf(date)] ?? [];
+}
+
+/** Whether a place is open at a moment, and until when — or when it next opens (null: not within a week). */
 export function statusAt(place: Place, now: HawaiiTime): Status {
-  const today = place.week[now.day] ?? [];
+  const holiday = HOLIDAYS[now.date];
+  const today = slotsOn(place, now.date);
+  if (today === null) return { state: "unknown", holiday };
+
   const i = today.findIndex((s) => minutes(s.from) <= now.minute && now.minute < minutes(s.to));
   if (i >= 0) {
     const slot = today[i];
@@ -38,18 +57,20 @@ export function statusAt(place: Place, now: HawaiiTime): Status {
       if (next.from !== until || next.only !== slot.only) break;
       until = next.to;
     }
-    return { open: true, until, label: slot.label, only: slot.only };
+    return { state: "open", until, label: slot.label, only: slot.only, holiday };
   }
 
   const later = today.find((s) => minutes(s.from) > now.minute);
-  if (later) return { open: false, opens: { day: null, at: later.from, only: later.only } };
-  const start = WEEK.indexOf(now.day);
+  if (later) return { state: "closed", opens: { day: null, at: later.from, only: later.only }, holiday };
   for (let ahead = 1; ahead <= 7; ahead++) {
-    const day = WEEK[(start + ahead) % 7];
-    const first = place.week[day]?.[0];
-    if (first) return { open: false, opens: { day: ahead === 1 ? "tomorrow" : day, at: first.from, only: first.only } };
+    const date = addDays(now.date, ahead);
+    const slots = slotsOn(place, date);
+    if (slots === null) break; // a holiday with no posted hours: don't promise a time
+    if (slots[0]) {
+      return { state: "closed", opens: { day: ahead === 1 ? "tomorrow" : weekdayOf(date), at: slots[0].from, only: slots[0].only }, holiday };
+    }
   }
-  return { open: false, opens: null };
+  return { state: "closed", opens: null, holiday };
 }
 
 /** "07:00" → "7 am", "13:30" → "1:30 pm", "24:00" → "midnight". */

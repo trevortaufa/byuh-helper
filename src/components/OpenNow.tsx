@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { PLACES, type Place } from "@/data/hours";
+import { HOLIDAYS, PLACES, type Place } from "@/data/hours";
 import { formatTime, hawaiiTime, statusAt, type Status } from "@/lib/hours";
 
 // The current minute, so the list re-checks itself while the page stays open. On the server there's no
@@ -20,15 +20,24 @@ export function OpenNow() {
 
   const now = hawaiiTime(new Date(minute * 60_000));
   const rows = PLACES.map((place) => ({ place, status: statusAt(place, now) }));
-  // Open places first, in the order they're listed; closed ones after.
-  rows.sort((a, b) => Number(b.status.open) - Number(a.status.open));
+  // Open places first, then closed, then holiday-hours-unknown; each in the order they're listed.
+  const rank = { open: 0, closed: 1, unknown: 2 };
+  rows.sort((a, b) => rank[a.status.state] - rank[b.status.state]);
+  const holiday = HOLIDAYS[now.date];
 
   return (
-    <ul className="flex flex-col gap-3">
-      {rows.map(({ place, status }) => (
-        <Row key={place.id} place={place} status={status} />
-      ))}
-    </ul>
+    <>
+      {holiday && (
+        <p className="rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          Today is {holiday}: holiday hours.
+        </p>
+      )}
+      <ul className="flex flex-col gap-3">
+        {rows.map(({ place, status }) => (
+          <Row key={place.id} place={place} status={status} />
+        ))}
+      </ul>
+    </>
   );
 }
 
@@ -41,7 +50,7 @@ function Row({ place, status }: { place: Place; status: Status }) {
         </a>
         <span className="text-xs text-zinc-500">{place.group}</span>
       </div>
-      <p className={`mt-1 text-sm font-medium ${status.open ? (status.only ? "text-amber-600 dark:text-amber-400" : "text-teal-600 dark:text-teal-400") : "text-zinc-500"}`}>
+      <p className={`mt-1 text-sm font-medium ${status.state === "open" ? (status.only ? "text-amber-600 dark:text-amber-400" : "text-teal-600 dark:text-teal-400") : "text-zinc-500"}`}>
         {describe(status)}
       </p>
       {(place.note || place.phone) && (
@@ -60,7 +69,8 @@ function Row({ place, status }: { place: Place; status: Status }) {
 }
 
 function describe(status: Status): string {
-  if (status.open) {
+  if (status.state === "unknown") return `${status.holiday} hours not posted · check their page`;
+  if (status.state === "open") {
     const who = status.only ? `${status.only} only` : "Open";
     const what = status.label ? ` · ${status.label}` : "";
     return `${who} until ${formatTime(status.until)}${what}`;

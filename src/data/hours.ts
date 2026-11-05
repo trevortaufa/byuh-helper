@@ -28,7 +28,21 @@ export interface Place {
   phone?: string;
   note?: string;
   week: Partial<Record<Weekday, Slot[]>>; // a missing day is closed all day
+  /** Hours on every date in HOLIDAYS. Left out when the place doesn't post any, so the app says so instead of guessing. */
+  holidays?: Slot[] | "closed";
+  /** One-off dates that beat everything else; [] is closed. */
+  dates?: Record<string, Slot[]>;
 }
+
+/** School holidays for the rest of this academic year (YYYY-MM-DD in Hawaii). Re-check each semester. */
+export const HOLIDAYS: Record<string, string> = {
+  "2026-11-26": "Thanksgiving",
+  "2026-11-27": "Day after Thanksgiving",
+  "2026-12-24": "Christmas Eve",
+  "2026-12-25": "Christmas",
+  "2026-12-31": "New Year's Eve",
+  "2027-01-01": "New Year's Day",
+};
 
 const days = (names: Weekday[], slots: Slot[]) => Object.fromEntries(names.map((d) => [d, slots]));
 const WEEKDAYS: Weekday[] = ["monday", "tuesday", "wednesday", "thursday", "friday"];
@@ -56,6 +70,12 @@ export const PLACES: Place[] = [
         { from: "16:00", to: "18:30", label: "Dinner" },
       ],
     },
+    holidays: [
+      { from: "08:00", to: "10:00", label: "Breakfast" },
+      { from: "10:00", to: "11:00", label: "Late breakfast" },
+      { from: "11:00", to: "14:00", label: "Lunch" },
+      { from: "16:00", to: "20:00", label: "Dinner" },
+    ],
   },
   {
     id: "library",
@@ -72,6 +92,11 @@ export const PLACES: Place[] = [
       ],
       friday: [{ from: "07:00", to: "20:00" }],
       saturday: [{ from: "09:00", to: "15:00" }],
+    },
+    holidays: "closed",
+    dates: {
+      "2026-11-27": [{ from: "09:00", to: "17:00" }],
+      "2026-12-11": [{ from: "12:00", to: "17:00", label: "Graduation day" }],
     },
   },
   {
@@ -156,6 +181,7 @@ export const PLACES: Place[] = [
         { from: "12:00", to: "17:00" },
       ],
     },
+    holidays: "closed",
   },
   {
     id: "shore-mini-mart",
@@ -169,6 +195,7 @@ export const PLACES: Place[] = [
         { from: "12:00", to: "23:00" },
       ],
     },
+    holidays: "closed",
   },
   {
     id: "health-center",
@@ -184,5 +211,6 @@ export const PLACES: Place[] = [
       ]),
       wednesday: [{ from: "08:00", to: "12:00" }],
     },
+    holidays: "closed",
   },
 ];
